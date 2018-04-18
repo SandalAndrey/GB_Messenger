@@ -12,7 +12,7 @@ while True:
         for k in range(cnt):
             path = os.getcwd()
             path = os.path.join(path, 'client.py')
-            p_list.append(Popen('python ' + path + ' -username User' + str(k) + ' -autobot ' + str(cnt),
+            p_list.append(Popen('python ' + path + ' -username User' + str(k) + ' -ui colorama -autobot ' + str(cnt),
                                 creationflags=CREATE_NEW_CONSOLE))
     elif user == 'x':
         for p in p_list:

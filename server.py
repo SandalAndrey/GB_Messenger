@@ -402,9 +402,9 @@ class Server:
         for peername, client in self.clients.items():
             client.writer.write_eof()
 
-    @property
-    def connections(self):
-        return self._connections
+    # @property
+    # def connections(self):
+    #     return self._connections
 
     @property
     def users(self):
@@ -416,6 +416,7 @@ class Server:
 
 
 if __name__ == "__main__":
+
     loop = asyncio.get_event_loop()
     mainserver = Server()
     asyncio.async(mainserver.run_server())

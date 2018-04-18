@@ -365,8 +365,10 @@ if __name__ == '__main__':
     username = None
 
     # Закомментированные ниже 2 строки - используется граф. интерфейс.
-    # gui = ui.UI(False)
-    # gui = ui.ConsoleUI(True)
+    if arg.ui == 'console':
+        gui = ui.UI(False)
+    elif arg.ui == 'colorama':
+        gui = ui.ConsoleUI(True)
 
     if arg.username:
         username = arg.username
