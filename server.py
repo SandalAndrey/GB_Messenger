@@ -2,11 +2,8 @@ import inspect
 import json
 import struct
 import time
-from socketserver import StreamRequestHandler, ThreadingTCPServer
 from collections import namedtuple
 import asyncio
-
-import select as sel
 
 import jim_db as db
 import jim_message
@@ -150,10 +147,10 @@ class Server:
                     msg.to == '*' or msg.to == self.users[self.clients[peer]]))[:]
 
             for message in messages:
-                msg = str(jim_message.JIMMessage('msg', '{}: {} - {}'.format(message.timestamp, message.to, message.message)))
+                msg = str(
+                    jim_message.JIMMessage('msg', '{}: {} - {}'.format(message.timestamp, message.to, message.message)))
 
                 self._write_to_user(self.clients[peer], msg)
-
 
     @log
     def get_contacts(self, data, peer):
