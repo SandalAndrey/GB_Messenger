@@ -3,8 +3,6 @@ import json
 import struct
 import time
 from socketserver import StreamRequestHandler, ThreadingTCPServer
-from collections import namedtuple
-import asyncio
 
 import select as sel
 
@@ -13,8 +11,6 @@ import jim_message
 import server_cfg as cfg
 from log_config import *
 from users import hash
-
-Client = namedtuple('Client', 'reader writer')
 
 
 def log(fn):
@@ -27,47 +23,32 @@ def log(fn):
     return wrapped
 
 
-class Server:
-    def __init__(self):
+class ChatHandler(StreamRequestHandler):
+    def __init__(self, request, client_address, server):
         """
         _actions - список соответствия команд чата методам класса
         """
         self._actions = {'presence': self.presence, 'msg': self.msg, 'quit': self.quit, 'join': self.join,
                          'leave': self.leave, 'get_contacts': self.get_contacts, 'add_contact': self.add_contact,
-                         'del_contact': self.del_contact, 'search_msg': self.search_msg}
+                         'del_contact': self.del_contact}
 
-        # self._connections = []
-        self._users = {}
-        self._rooms = {}
-        self.clients = {}
-
-        self.server = None
-
-        self.loop = asyncio.get_event_loop()
-
-    @asyncio.coroutine
-    def run_server(self):
-        try:
-            self.server = yield from asyncio.start_server(self.client_connected, cfg.SERVER_HOST, cfg.SERVER_PORT)
-            print('Сервер запущен {}:{}'.format(cfg.SERVER_HOST, cfg.SERVER_PORT))
-        except OSError as e:
-            print('Ошибка при запуске сервера {}'.format(e))
-            self.loop.stop()
+        StreamRequestHandler.__init__(self, request, client_address, server)
 
     @log
-    def presence(self, data, peer):
+    def presence(self, data):
         """
         Регистрация клиента в чате
         :param data:  - presence сообщение
         """
+        client = self.request
 
-        self.users[self.clients[peer]] = data['user']['account_name']  # соответствие сокета экземпляру класса User
+        chat.users[client] = data['user']['account_name']  # соответствие сокета экземпляру класса User
 
-        app_log.info('{}, {}'.format(peer, data))
+        app_log.info('{}, {}'.format(client, data))
 
         msg = str(jim_message.JIMMessage('msg', 'С нами {}!!!'.format(data['user']['account_name'])))
 
-        self._write_to_all(peer, msg)
+        self._write_to_all(client, msg)
 
         with db.db_session:
             if not db.Client.get(login=data['user']['account_name']):
@@ -78,117 +59,109 @@ class Server:
                 new_cli = db.Client.get(login=data['user']['account_name'])
 
             _ = db.ClientHistory(client=new_cli, timestamp=time.strftime('%Y-%m-%d %H:%M:%S'),
-                                 ipaddress=peer[0])
+                                 ipaddress=self.client_address[0])
 
     @log
-    def msg(self, data, peer):
+    def msg(self, data):
         """
         Обработка сообщения от клиента. Передача всем (*) или конкретному юзеру
         :param data: сообщение
         """
+        client = self.request
 
-        app_log.info('{}, {}'.format(peer, data))
+        app_log.info('{}, {}'.format(client, data))
 
         msg = str(jim_message.JIMMessage('msg', data['message'], fr=data['from']))
 
         if data['to'] == '*':
-            self._write_to_all(peer, msg)
+            self._write_to_all(client, msg)
         else:
             # определение сокета по имени пользователя
             try:
-                user = list(self.users.keys())[list(self.users.values()).index(data['to'])]
+                user = list(chat.users.keys())[list(chat.users.values()).index(data['to'])]
                 if user:
                     self._write_to_user(user, msg)
             except ValueError:
                 pass
 
         with db.db_session:
-            if self.users.get(self.clients[peer]):
-                owner = db.Client.get(login=self.users[self.clients[peer]])
+            if chat.users.get(client):
+                owner = db.Client.get(login=chat.users[client])
                 _ = db.MessageHistory(client=owner, message=data['message'], to=data['to'],
                                       timestamp=time.strftime('%Y-%m-%d %H:%M:%S'))
 
     @log
-    def join(self, data, peer):
+    def join(self, data):
         """
         Присоединение к "комнате" чата
         :param data:
         """
         # todo реализовать присоединение
+        client = self.request
 
-        app_log.info('{}, {}'.format(peer, data))
+        app_log.info('{}, {}'.format(client, data))
 
-        self.rooms[peer] = data['room']
+        chat.rooms[client] = data['room']
 
         msg = str(jim_message.JIMMessage('msg', 'Добро пожаловать в комнату {}'.format(data['room'])))
 
-        self._write_to_user(self.clients[peer], msg)
+        self._write_to_user(client, msg)
 
     @log
-    def leave(self, data, peer):
+    def leave(self, data):
         """
         Выход из комнаты
         :param data:
         """
 
-        app_log.info('{}, {}'.format(peer, data))
+        client = self.request
 
-        if self.rooms.get(peer):
-            msg = str(jim_message.JIMMessage('msg', 'Вы покинули комнату {}'.format(self.rooms[peer])))
+        app_log.info('{}, {}'.format(client, data))
 
-            self.rooms[peer] = ''
+        if chat.rooms.get(client):
+            msg = str(jim_message.JIMMessage('msg', 'Вы покинули комнату {}'.format(chat.rooms[client])))
 
-            self._write_to_user(self.clients[peer], msg)
+            chat.rooms[client] = ''
 
-    @log
-    def search_msg(self, data, peer):
-
-        app_log.info('{}, {}'.format(peer, data))
-
-        with db.db_session:
-            messages = db.select(msg for msg in db.MessageHistory if data['message'] in msg.message and (
-                    msg.to == '*' or msg.to == self.users[self.clients[peer]]))[:]
-
-            for message in messages:
-                msg = str(jim_message.JIMMessage('msg', '{}: {} - {}'.format(message.timestamp, message.to, message.message)))
-
-                self._write_to_user(self.clients[peer], msg)
-
+            self._write_to_user(client, msg)
 
     @log
-    def get_contacts(self, data, peer):
+    def get_contacts(self, data):
         """
         Получает список контактов и передает клиенту. Сначала количество, затем контакты. (как в методичке)
         Передается статус (онлайн контакт или оффлайн...)
         """
-        app_log.info('{}, {}'.format(peer, data))
+
+        client = self.request
+
+        app_log.info('{}, {}'.format(client, data))
 
         with db.db_session:
             contacts = db.select(
                 cli for c in db.Contact for o in c.owner for cli in db.Client if cli.id == c.contact and
-                o.login == self.users[self.clients[peer]])[:]
+                o.login == chat.users[client])[:]
             if contacts:
                 msg = str(jim_message.JIMResponse(202, str(len(contacts))))
-                self._write_to_user(self.clients[peer], msg)
+                self._write_to_user(client, msg)
 
                 for contact in contacts:
-                    if contact.login in self.users.values():
+                    if contact.login in chat.users.values():
                         online = ' (online)'
                     else:
                         online = ' (offline)'
-                    msg = str(jim_message.JIMMessage('contact', '', to=contact.login))
-                    self._write_to_user(self.clients[peer], msg)
+                    msg = str(jim_message.JIMMessage('contact', online, to=contact.login))
+                    self._write_to_user(client, msg)
 
     @log
-    def add_contact(self, data, peer):
+    def add_contact(self, data):
         """
         Добавляет контакт
         """
 
-        app_log.info('{}, {}'.format(peer, data))
+        app_log.info('{}, {}'.format(self.request, data))
 
         with db.db_session:
-            owner = db.Client.get(login=self.users[self.clients[peer]])
+            owner = db.Client.get(login=chat.users[self.request])
             contact = db.Client.get(login=data['user_id'])
 
             if contact:
@@ -202,18 +175,18 @@ class Server:
                 msg = str(jim_message.JIMResponse(404, 'Не найден клиент {}'.format(data['user_id'])))
 
             if msg:
-                self._write_to_user(self.clients[peer], msg)
+                self._write_to_user(self.request, msg)
 
     @log
-    def del_contact(self, data, peer):
+    def del_contact(self, data):
         """
         Удаление контакта
         """
 
-        app_log.info('{}, {}'.format(peer, data))
+        app_log.info('{}, {}'.format(self.request, data))
 
         with db.db_session:
-            owner = db.Client.get(login=self.users[self.clients[peer]])
+            owner = db.Client.get(login=chat.users[self.request])
             contact = db.Client.get(login=data['user_id'])
 
             if contact:
@@ -222,25 +195,26 @@ class Server:
             else:
                 msg = str(jim_message.JIMResponse(404, 'Не найден клиент {}'.format(data['user_id'])))
 
-            self._write_to_user(self.clients[peer], msg)
+            self._write_to_user(self.request, msg)
 
     @log
-    def quit(self, data, peer):
+    def quit(self, data):
         """
         Сообщение о выходе клиента из чата
         :param data:
         """
-        # self.connections.remove(client)
+        client = self.request
 
-        self.users[self.clients[peer]] = ''
+        chat.connections.remove(client)
+        chat.users[client] = ''
 
         msg = str(jim_message.JIMMessage('msg', '{} покинул чат...'.format(data['user']['account_name'])))
 
-        self._write_to_all(peer, msg)
+        self._write_to_all(client, msg)
 
-        del self.clients[peer]
+        self.request.close()
 
-        app_log.info('{}, {}'.format(peer, data))
+        app_log.info('{}, {}'.format(self.request, data))
 
     def _auth(self, login, password):
         """
@@ -272,7 +246,7 @@ class Server:
                 app_log.info('{} - без авторизации'.format(login))
                 return True
 
-    def parse_request(self, req, peer):
+    def parse_request(self, req):
         """
         разбор сообщения
         :param req: запрос
@@ -287,15 +261,15 @@ class Server:
                 raise ValueError(421, 'Нет такой команды - {}'.format(action))
 
             if action == 'msg':
-                if not (req.get('to') and (req['to'] in self.users.values() or req['to'] == '*')):
+                if not (req.get('to') and (req['to'] in chat.users.values() or req['to'] == '*')):
                     raise ValueError(404, 'Не найден пользователь {}'.format(req['to']))
 
             if action == 'join':
-                if self.rooms.get(peer):
-                    raise ValueError(422, 'Вы уже находитесь в комнате {}'.format(self.rooms[peer]))
+                if chat.rooms.get(self.request):
+                    raise ValueError(422, 'Вы уже находитесь в комнате {}'.format(chat.rooms[self.request]))
 
             if action == 'presence':
-                if req['user']['account_name'] in self.users.values():
+                if req['user']['account_name'] in chat.users.values():
                     raise ValueError(409, 'Уже имеется подключение с указанным логином {}'.format(
                         req['user']['account_name']))
 
@@ -325,16 +299,19 @@ class Server:
         """
         # получаем список активных сокетов исключая отправителя
 
-        room_from = self.rooms.get(from_, '')
+        room_from = chat.rooms.get(from_, '')
 
-        try:
-            for client_peername, client in self.clients.items():
-                if room_from == self.rooms.get(client_peername, '') and client_peername != from_:
-                    self._write_to_user(client, msg)
+        active = list(x for x in chat.connections if x.fileno() > -1 and x != from_)
+        if active:
+            try:
+                _, write, _ = sel.select([], active, [])
+                for client in write:
+                    if room_from == chat.rooms.get(client, ''):
+                        self._write_to_user(client, msg)
 
-        except Exception as e:
-            print(str(e))
-            raise
+            except Exception as e:
+                print(active)
+                raise
 
     @log
     def _write_to_user(self, client, msg):
@@ -345,7 +322,7 @@ class Server:
         """
         try:
             # передаем длину сообщения в структуре и само сообщение
-            client.writer.write(struct.pack('>I', len(msg)) + msg.encode('utf-8'))
+            client.send(struct.pack('>I', len(msg)) + msg.encode('utf-8'))
 
         except (ConnectionResetError, OSError, ConnectionAbortedError):
             self._client_exception(client)
@@ -356,55 +333,57 @@ class Server:
             app_log.exception('client {} {} disconnected.'.format(cli.fileno(), cli.getpeername()))
             cli.close()
 
-        if cli in self.users:
-            msg = str(jim_message.JIMMessage('msg', '{} покинул чат...'.format(self.users[cli])))
-            self.users.pop(cli)
+        if cli in chat.users:
+            msg = str(jim_message.JIMMessage('msg', '{} покинул чат...'.format(chat.users[cli])))
+            chat.users.pop(cli)
             self._write_to_all(None, msg)
 
-        if cli in self.connections:
-            self.connections.remove(cli)
+        if cli in chat.connections:
+            chat.connections.remove(cli)
 
-    @asyncio.coroutine
-    def client_connected(self, reader, writer):
-        peername = writer.transport.get_extra_info('peername')
-
-        new_client = Client(reader, writer)
-        self.clients[peername] = new_client
-        print('Подключение клиента: {}'.format(peername))
-        while not reader.at_eof():
+    def handle(self):
+        while True:
             try:
-                msg = yield from reader.readline()
-                if msg:
-                    cmd = self.parse_request(msg, peername)
+                command = self.rfile.readline().decode('utf-8')
+            except (ConnectionResetError, ConnectionAbortedError):
+                time.sleep(0.1)
+                continue
+            else:
+                if self.request not in chat.connections:
+                    chat.connections.append(self.request)
+            if not command:
+                break
 
-                    msg = str(jim_message.JIMResponse(cmd['err_code'], cmd['error']))
-                    try:
-                        new_client.writer.write(struct.pack('>I', len(msg)) + msg.encode('utf-8'))
-                    except ConnectionResetError as e:
-                        print('ConnectionResetError: {}'.format(e))
-                        continue
-                    if cmd['err_code'] == 200:
-                        req = cmd['request']
-                        # вызов метода по имени команды
-                        self._actions[req['action']](req, peername)
+            request = self.parse_request(command)
 
-            except Exception as e:
-                print('ERROR: {}'.format(e))
-                # del self.clients[peername]
-                return
+            msg = str(jim_message.JIMResponse(request['err_code'], request['error']))
 
-    def close(self):
-        self.close_clients()
-        self.loop.stop()
+            try:
+                self.wfile.write(struct.pack('>I', len(msg)) + msg.encode('utf-8'))
+            except ConnectionResetError as e:
+                # self._client_exception(self.request)
+                continue
 
-    def close_clients(self):
-        print('Sending EndOfFile to all clients to close them.')
-        for peername, client in self.clients.items():
-            client.writer.write_eof()
+            if request['err_code'] == 200:
+                req = request['request']
 
-    # @property
-    # def connections(self):
-    #     return self._connections
+                # вызов метода по имени команды
+                self._actions[req['action']](req)
+
+
+class ChatServer(ThreadingTCPServer):
+    def __init__(self, server_address, handler_class):
+        self._connections = []
+        self._users = {}
+        self._rooms = {}
+
+        ThreadingTCPServer.__init__(self, server_address, handler_class)
+
+    allow_reuse_address = True
+
+    @property
+    def connections(self):
+        return self._connections
 
     @property
     def users(self):
@@ -416,14 +395,6 @@ class Server:
 
 
 if __name__ == "__main__":
-
-    loop = asyncio.get_event_loop()
-    mainserver = Server()
-    asyncio.async(mainserver.run_server())
-    try:
-        loop.run_forever()
-    except KeyboardInterrupt:
-        print('Сервер остановлен.')
-        mainserver.close()
-    finally:
-        loop.close()
+    chat = ChatServer((cfg.SERVER_HOST, cfg.SERVER_PORT), ChatHandler)
+    print('Сервер стартовал...')
+    chat.serve_forever()
