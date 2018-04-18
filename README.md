@@ -8,6 +8,9 @@
 по умолчанию стартует в граф. интерфейсе (параметр запуска **ui** для выбора)
 - _python many_lients.py_ - запуск нескольких консольных клиентов с генерацией обмена сообщениями между ними
 
+Branch master - asyncio сервер, threading клиент
+Branch Thread - ThreadingTCPServer сервер, threading клиент
+
 Комментарии к выполнению ДЗ:
 
 https://github.com/SandalAndrey/GB_Messenger/issues
