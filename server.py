@@ -30,7 +30,7 @@ class ChatHandler(StreamRequestHandler):
         """
         self._actions = {'presence': self.presence, 'msg': self.msg, 'quit': self.quit, 'join': self.join,
                          'leave': self.leave, 'get_contacts': self.get_contacts, 'add_contact': self.add_contact,
-                         'del_contact': self.del_contact}
+                         'del_contact': self.del_contact, 'search_msg': self.search_msg}
 
         StreamRequestHandler.__init__(self, request, client_address, server)
 
@@ -196,6 +196,21 @@ class ChatHandler(StreamRequestHandler):
                 msg = str(jim_message.JIMResponse(404, 'Не найден клиент {}'.format(data['user_id'])))
 
             self._write_to_user(self.request, msg)
+
+    @log
+    def search_msg(self, data):
+
+        app_log.info('{}, {}'.format(self.request, data))
+
+        with db.db_session:
+            messages = db.select(msg for msg in db.MessageHistory if data['message'] in msg.message and (
+                    msg.to == '*' or msg.to == chat.users[self.request]))[:]
+
+            for message in messages:
+                msg = str(
+                    jim_message.JIMMessage('msg', '{}: {} - {}'.format(message.timestamp, message.to, message.message)))
+
+                self._write_to_user(self.request, msg)
 
     @log
     def quit(self, data):
