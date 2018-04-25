@@ -299,7 +299,10 @@ class KivyUI(UI):
     def show(self):
 
         self.kivyapp.run()
-        self.client.run()
+        # self.client.run()
+
+    def start(self, name):
+        print('Добро пожаловать в kivy, {}'.format(name))
 
     def parse_answer(self, ans):
         # print(ans)

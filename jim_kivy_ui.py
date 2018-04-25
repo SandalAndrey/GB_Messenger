@@ -1,3 +1,5 @@
+import threading
+
 from kivy.app import App
 from kivy.config import Config
 from kivy.properties import StringProperty
@@ -37,8 +39,21 @@ class ConfirmPopup(GridLayout):
 
 class ChatKivyApp(App):
     client=None
+
+    def on_start(self):
+        print('start')
+        t = threading.Thread(target=self.client.run)
+        t.daemon = True
+
+        t.start()
+
+        # self.client.run()
+        print('started')
+
     def build(self):
         # self.client=None
+
+        ui=ChatKivyUI()
 
         content = ConfirmPopup(text='Do You Love Kivy?')
         content.bind(on_answer=self._on_answer)
@@ -49,7 +64,7 @@ class ChatKivyApp(App):
                            auto_dismiss=False)
         # self.popup.open()
 
-        return ChatKivyUI()
+        return ui
 
     def _on_answer(self, instance, answer):
         print("USER ANSWER: ", repr(answer))

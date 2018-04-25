@@ -87,7 +87,7 @@ class ChatClient:
                 print(self.kv)
                 self.kv.popup.open()
 
-                self._user = users.User('test')
+                self._user = users.User('test1')
 
             msg = jim_message.JIMMessage('presence', '', user=self.user)
 
