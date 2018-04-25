@@ -32,7 +32,7 @@ parser.add_argument('-password', '--password', required=False,
                     help='пароль пользователя. После установки, вход без пароля станет не возможен...')
 parser.add_argument('-message', '--message', required=False, help='сообщение в чат')
 parser.add_argument('-autobot', '--autobot', required=False, help='параметр для запуска генерации сообщений в чат')
-parser.add_argument('-ui', '--ui', choices=['console', 'colorama', 'graphic'], required=False, help='выбор интерфейса чата')
+parser.add_argument('-ui', '--ui', choices=['console', 'colorama', 'graphic', 'kivy'], required=False, help='выбор интерфейса чата')
 
 ars = vars(parser.parse_args())
 

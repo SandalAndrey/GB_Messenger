@@ -10,6 +10,7 @@ import css
 import jim_client_db as db
 import main_window
 
+import jim_kivy_ui as kv
 
 class UI:
     """
@@ -283,3 +284,45 @@ class GraphicUI(UI):
 
     def show_contacts(self, contacts):
         self.window.ui.contact_list.addItems(contacts)
+
+class KivyUI(UI):
+    def __init__(self, debug, client):
+        self.client=client
+        self.kivyapp = kv.ChatKivyApp()
+
+        client._kv=self.kivyapp
+
+        self.kivyapp.client=client
+
+        super().__init__(debug)
+
+    def show(self):
+
+        self.kivyapp.run()
+        self.client.run()
+
+    def parse_answer(self, ans):
+        # print(ans)
+
+        try:
+            ans = json.loads(ans)
+        except json.JSONDecodeError:
+            return 444, 'wrong json format\n' + ans
+
+        retstr = ''
+
+        if ans.get('response'):
+            if ans['response'] >= 400:
+                retstr = '{}. {}'.format(ans['response'], ans['error'])
+
+            if ans['response'] == 202:
+                retstr = ans['alert']
+
+        if ans.get('contact'):
+            return 203, ans['contact']  # + ans['message']
+
+        if ans.get('message'):
+            retstr = '{}. {}: {}'.format(time.ctime(ans['time']), ans['from'], ans['message'])
+            retstr = {'from': ans['from'], 'time': ans['time'], 'message': ans['message']}
+
+        return ans.get('response') if ans.get('response') else 200, retstr

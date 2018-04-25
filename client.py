@@ -12,7 +12,7 @@ from descriptor import CharNumValue
 
 
 class ChatClient:
-    __slots__ = ('_addr', '_port', '_user', '_sock', '_contacts', '_qt')
+    __slots__ = ('_addr', '_port', '_user', '_sock', '_contacts', '_qt', '_kv')
 
     def __init__(self, addr, port, user=None):
         self._addr = str(addr)
@@ -23,6 +23,7 @@ class ChatClient:
         self._contacts = None
 
         self._qt = None
+        self._kv = None
 
     def __enter__(self):
         return self
@@ -41,6 +42,10 @@ class ChatClient:
     @property
     def qt(self):
         return self._qt
+
+    @property
+    def kv(self):
+        return self._kv
 
     @property
     def sock(self):
@@ -77,6 +82,12 @@ class ChatClient:
                 if not (ok and name):
                     exit()
                 self._user = users.User(name)
+
+            if not self.user and self.kv:
+                print(self.kv)
+                self.kv.popup.open()
+
+                self._user = users.User('test')
 
             msg = jim_message.JIMMessage('presence', '', user=self.user)
 
@@ -390,5 +401,7 @@ if __name__ == '__main__':
         if gui:
             client.run()
         else:
-            gui = ui.GraphicUI(False, client)
+            # gui = ui.GraphicUI(False, client)
+            gui=ui.KivyUI(False, client)
+
             gui.show()

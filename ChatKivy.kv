@@ -1,0 +1,71 @@
+<ChatKivyUI>:
+    BoxLayout:
+        orientation:'vertical'
+        ActionBar:
+            pos_hint: {'top':1}
+            ActionView:
+                use_separator: True
+                ActionPrevious:
+                    title: 'Action Bar'
+                    with_previous: False
+                ActionOverflow:
+                ActionButton:
+                    important: True
+                    text: 'Important'
+                ActionButton:
+                    text: 'Btn2'
+                ActionButton:
+                    text: 'Btn3'
+        BoxLayout:
+            orientation:'horizontal'
+            TextInput:
+            BoxLayout:
+                orientation:'vertical'
+                ListView:
+                    id: messageList
+                ActionBar:
+                    pos_hint: {'top':1}
+                    ActionView:
+                        use_separator: True
+                        ActionPrevious:
+                            title: 'Action Bar'
+                            with_previous: False
+                        ActionOverflow:
+                        ActionButton:
+                            important: True
+                            text: 'Important'
+                        ActionButton:
+                            text: 'Btn2'
+                        ActionButton:
+                            text: 'Btn3'
+                TextInput:
+                    id: text_input
+                    markup:True
+                    hint_text: 'Input message'
+                    size_hint: 1, None
+                    height: 200
+                Button:
+                    size_hint: 0.5, None
+                    height: 30
+                    text: 'Exit'
+                    on_press: root.new_message()
+                Button:
+                    size_hint: 0.5, None
+                    height: 30
+                    text: 'Popup'
+                    on_press: app.popup.open()
+<ConfirmPopup>:
+    background_color:[1,1,1,1]
+    cols:1
+	Label:
+		text: root.text
+	GridLayout:
+		cols: 2
+		size_hint_y: None
+		height: '44sp'
+		Button:
+			text: 'Yes'
+			on_release: root.dispatch('on_answer','yes')
+		Button:
+			text: 'No'
+			on_release: root.dispatch('on_answer', 'no')
