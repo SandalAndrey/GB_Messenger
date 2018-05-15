@@ -391,25 +391,26 @@ class Ui_MainWindow(object):
     def load_photo(self):
         fname = QFileDialog.getOpenFileName(self.centralwidget, 'Open file', '', 'Images (*.png *.xpm *.jpg)')[0]
 
-        image = Image.open(fname)
+        if fname:
+            image = Image.open(fname)
 
-        draw = ImageDraw.Draw(image)
-        img_tmp = ImageQt(image.convert('RGBA'))
+            draw = ImageDraw.Draw(image)
+            img_tmp = ImageQt(image.convert('RGBA'))
 
-        pixmap = QPixmap.fromImage(img_tmp)
-        # pixmap = QPixmap(fname)
+            pixmap = QPixmap.fromImage(img_tmp)
+            # pixmap = QPixmap(fname)
 
-        self.w = MyPopup()
-        self.w.image = image
-        self.w.client = self.graphic_ui.client
-        self.w.win = self
+            self.w = MyPopup()
+            self.w.image = image
+            self.w.client = self.graphic_ui.client
+            self.w.win = self
 
-        # self.w.setGeometry(QtCore.QRect(100, 100, 400, 300))
+            # self.w.setGeometry(QtCore.QRect(100, 100, 400, 300))
 
-        self.w.show()
+            self.w.show()
 
-        self.w.lbl.setPixmap(pixmap)
-        # self.w.lbl.resize(60, 90)
+            self.w.lbl.setPixmap(pixmap)
+            # self.w.lbl.resize(60, 90)
 
     def on_strongButton_clicked(self):
         cursor = self.textEdit.textCursor()
