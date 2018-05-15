@@ -139,7 +139,11 @@ class Server:
 
     @log
     def search_msg(self, data, peer):
-
+        """
+        Поиск сообщений в БД и выдача пользователю
+        :param data:
+        :param peer:
+        """
         app_log.info('{}, {}'.format(peer, data))
 
         with db.db_session:
